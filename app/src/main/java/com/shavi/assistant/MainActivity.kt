@@ -20,8 +20,8 @@ class MainActivity : AppCompatActivity() {
     private val requiredPermissions = mutableListOf(
         android.Manifest.permission.RECORD_AUDIO,
         android.Manifest.permission.CALL_PHONE,
-        android.Manifest.permission.READ_CONTACTS,
-        android.Manifest.permission.
+        android.Manifest.permission.READ_CONTACTS
+    
     ).apply {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(android.Manifest.permission.POST_NOTIFICATIONS)
