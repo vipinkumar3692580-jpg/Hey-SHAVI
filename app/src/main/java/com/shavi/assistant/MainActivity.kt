@@ -4,13 +4,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 class MainActivity : AppCompatActivity() {
@@ -21,7 +19,6 @@ class MainActivity : AppCompatActivity() {
         android.Manifest.permission.RECORD_AUDIO,
         android.Manifest.permission.CALL_PHONE,
         android.Manifest.permission.READ_CONTACTS
-    
     ).apply {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(android.Manifest.permission.POST_NOTIFICATIONS)
@@ -75,41 +72,4 @@ class MainActivity : AppCompatActivity() {
                 }
                 val key = prefs.getString("gemini_api_key", "")
                 if (key.isNullOrBlank()) {
-                    Toast.makeText(this, "Pehle Gemini API key save karein", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                startAssistantService()
-                statusText.text = "SHAVi chalu hai — bolein \"Hey SHAVi\""
-                toggleButton.text = "SHAVi Band Karein"
-                serviceRunning = true
-            } else {
-                stopAssistantService()
-                statusText.text = "Assistant band hai"
-                toggleButton.text = "SHAVi Start Karein"
-                serviceRunning = false
-            }
-        }
-    }
-
-    private fun allPermissionsGranted(): Boolean {
-        return requiredPermissions.all {
-            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
-        }
-    }
-
-    private fun startAssistantService() {
-        val intent = Intent(this, VoiceAssistantService::class.java)
-        ContextCompat.startForegroundService(this, intent)
-
-        // Nudge the user toward enabling Accessibility for scroll support (optional).
-        Toast.makeText(
-            this,
-            "Scroll feature ke liye Settings > Accessibility mein SHAVi on karein",
-            Toast.LENGTH_LONG
-        ).show()
-    }
-
-    private fun stopAssistantService() {
-        stopService(Intent(this, VoiceAssistantService::class.java))
-    }
-}
+                    Toast.ma
