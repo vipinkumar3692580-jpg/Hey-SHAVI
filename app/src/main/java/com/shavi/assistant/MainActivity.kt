@@ -20,7 +20,6 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class MainActivity : AppCompatActivity() {
 
-    // UI Elements
     private lateinit var statusText: TextView
     private lateinit var statusIcon: View
     private lateinit var wakeWordText: TextView
@@ -34,12 +33,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var clearHistoryBtn: Button
     private lateinit var historyScrollView: ScrollView
 
-    // Variables
     private var isServiceRunning = false
     private val handler = Handler(Looper.getMainLooper())
     private var responseCount = 0
 
-    // Broadcast Receiver for service updates
     private val statusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
@@ -72,11 +69,8 @@ class MainActivity : AppCompatActivity() {
         setupListeners()
         registerReceivers()
 
-        // Check if service is already running
-        isServiceRunning = VoiceAssistantService.Companion.isRunning
+        isServiceRunning = VoiceAssistantService.isRunning
         updateUI()
-
-        // Show welcome message
         showWelcomeMessage()
     }
 
@@ -96,25 +90,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupUI() {
-        // Dark theme
-        window.decorView.apply {
-            setBackgroundColor(ContextCompat.getColor(this@MainActivity, android.R.color.black))
-        }
-
-        // API Key input with visibility toggle
+        window.decorView.setBackgroundColor(ContextCompat.getColor(this, android.R.color.black))
         apiKeyInput.transformationMethod = PasswordTransformationMethod.getInstance()
         apiKeyInput.setHintTextColor(ContextCompat.getColor(this, android.R.color.darker_gray))
         
-        // Toggle password visibility
         toggleVisibility.setOnClickListener {
             if (apiKeyInput.transformationMethod == PasswordTransformationMethod.getInstance()) {
                 apiKeyInput.transformationMethod = null
                 toggleVisibility.setImageResource(android.R.drawable.ic_menu_view)
-                Toast.makeText(this, "API Key visible", Toast.LENGTH_SHORT).show()
             } else {
                 apiKeyInput.transformationMethod = PasswordTransformationMethod.getInstance()
                 toggleVisibility.setImageResource(android.R.drawable.ic_menu_manage)
-                Toast.makeText(this, "API Key hidden", Toast.LENGTH_SHORT).show()
             }
             apiKeyInput.setSelection(apiKeyInput.text.length)
         }
@@ -125,7 +111,6 @@ class MainActivity : AppCompatActivity() {
         val savedKey = prefs.getString("gemini_api_key", "")
         apiKeyInput.setText(savedKey)
         
-        // Load command history
         val history = prefs.getString("command_history", "")
         if (history.isNotEmpty()) {
             commandHistory.text = history
@@ -158,7 +143,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
-        // Toggle button - Start/Stop Service
         toggleButton.setOnClickListener {
             if (isServiceRunning) {
                 stopService()
@@ -167,29 +151,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Save API key on focus change
         apiKeyInput.setOnFocusChangeListener { _, hasFocus ->
             if (!hasFocus) {
                 saveApiKey()
             }
         }
 
-        // Save API key on text change (with delay)
-        apiKeyInput.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                // Auto-save after typing stops
-                handler.removeCallbacksAndMessages(null)
-                handler.postDelayed({
-                    if (apiKeyInput.text.toString().isNotEmpty()) {
-                        saveApiKey()
-                    }
-                }, 1000)
-            }
-        })
-
-        // Clear history button
         clearHistoryBtn.setOnClickListener {
             commandHistory.text = ""
             commandHistory.visibility = View.GONE
@@ -197,7 +164,7 @@ class MainActivity : AppCompatActivity() {
             val prefs = getSharedPreferences("shavi_prefs", MODE_PRIVATE)
             prefs.edit().remove("command_history").apply()
             responseCount = 0
-            Toast.makeText(this, "🗑️ History cleared", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "History cleared", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -212,23 +179,16 @@ class MainActivity : AppCompatActivity() {
     private fun startService() {
         val apiKey = apiKeyInput.text.toString().trim()
         
-        // Validate API Key
         if (apiKey.isEmpty()) {
-            Toast.makeText(this, "⚠️ कृपया Gemini API Key डालें", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "⚠️ Gemini API Key डालें", Toast.LENGTH_LONG).show()
             apiKeyInput.requestFocus()
             apiKeyInput.error = "API Key required"
             return
         }
 
         if (apiKey.length < 20) {
-            Toast.makeText(this, "⚠️ Invalid API Key (too short)", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "⚠️ Invalid API Key", Toast.LENGTH_LONG).show()
             apiKeyInput.error = "Invalid API Key"
-            return
-        }
-
-        if (!apiKey.startsWith("AIza")) {
-            Toast.makeText(this, "⚠️ Invalid API Key format", Toast.LENGTH_LONG).show()
-            apiKeyInput.error = "Must start with 'AIza'"
             return
         }
 
@@ -244,13 +204,7 @@ class MainActivity : AppCompatActivity() {
 
             isServiceRunning = true
             updateUI()
-            
-            Toast.makeText(this, "🚀 SHAVi शुरू हो गई!", Toast.LENGTH_SHORT).show()
-            
-            // Show startup message
-            responseContainer.visibility = View.VISIBLE
-            responseText.text = "🔊 SHAVi सुन रही है... 'Hey SHAVi' बोलें"
-            responseText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
+            Toast.makeText(this, "🚀 SHAVi Started!", Toast.LENGTH_SHORT).show()
 
         } catch (e: Exception) {
             Toast.makeText(this, "❌ Error: ${e.message}", Toast.LENGTH_LONG).show()
@@ -263,15 +217,9 @@ class MainActivity : AppCompatActivity() {
         try {
             val intent = Intent(this, VoiceAssistantService::class.java)
             stopService(intent)
-            
             isServiceRunning = false
             updateUI()
-            
-            Toast.makeText(this, "⏹ SHAVi बंद हो गई", Toast.LENGTH_SHORT).show()
-            
-            responseContainer.visibility = View.GONE
-            loadingProgress.visibility = View.GONE
-
+            Toast.makeText(this, "⏹ SHAVi Stopped", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Toast.makeText(this, "❌ Error: ${e.message}", Toast.LENGTH_LONG).show()
         }
@@ -282,14 +230,7 @@ class MainActivity : AppCompatActivity() {
         if (apiKey.isNotEmpty()) {
             val prefs = getSharedPreferences("shavi_prefs", MODE_PRIVATE)
             prefs.edit().putString("gemini_api_key", apiKey).apply()
-            
-            // Update VoiceAssistantService's API key
-            VoiceAssistantService.Companion.apiKey = apiKey
-            
-            // Show confirmation only if valid
-            if (apiKey.length >= 20 && apiKey.startsWith("AIza")) {
-                Toast.makeText(this, "✅ API Key saved", Toast.LENGTH_SHORT).show()
-            }
+            VoiceAssistantService.apiKey = apiKey
         }
     }
 
@@ -303,11 +244,7 @@ class MainActivity : AppCompatActivity() {
                 statusIcon.visibility = View.VISIBLE
                 wakeWordText.text = "🔊 Listening for 'Hey SHAVi'..."
                 wakeWordText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
-                toggleButton.isEnabled = true
-                
-                // Animate status icon
                 animateStatusIcon(true)
-                
             } else {
                 toggleButton.text = "🚀 Start SHAVi"
                 toggleButton.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_blue_light))
@@ -316,8 +253,6 @@ class MainActivity : AppCompatActivity() {
                 statusIcon.visibility = View.GONE
                 wakeWordText.text = "⚪ Say 'Hey SHAVi' to activate"
                 wakeWordText.setTextColor(ContextCompat.getColor(this, android.R.color.darker_gray))
-                toggleButton.isEnabled = true
-                
                 animateStatusIcon(false)
                 loadingProgress.visibility = View.GONE
             }
@@ -328,23 +263,17 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             wakeWordText.text = status
             when {
-                status.contains("सुन") || status.contains("Listening") -> {
+                status.contains("सुन") -> {
                     wakeWordText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
                     statusIcon.visibility = View.VISIBLE
-                    animateStatusIcon(true)
                 }
-                status.contains("प्रोसेस") || status.contains("Processing") -> {
+                status.contains("प्रोसेस") -> {
                     wakeWordText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_light))
                     loadingProgress.visibility = View.VISIBLE
                 }
-                status.contains("Error") || status.contains("⚠️") || status.contains("restart") -> {
+                status.contains("Error") -> {
                     wakeWordText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
                     loadingProgress.visibility = View.GONE
-                    // Show error in response
-                    showResponse("⚠️ $status")
-                }
-                status.contains("API key") -> {
-                    wakeWordText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_light))
                     showResponse("⚠️ $status")
                 }
                 else -> {
@@ -361,17 +290,12 @@ class MainActivity : AppCompatActivity() {
             responseText.text = "🗣️ $response"
             responseText.setTextColor(ContextCompat.getColor(this, android.R.color.white))
             loadingProgress.visibility = View.GONE
+            addToHistory(response)
             
-            // Add to history if not error
-            if (!response.contains("Error") && !response.contains("⚠️")) {
-                addToHistory(response)
-            }
-            
-            // Auto-hide after 5 seconds
             handler.removeCallbacksAndMessages(null)
             handler.postDelayed({
                 responseContainer.visibility = View.GONE
-            }, 6000)
+            }, 5000)
         }
     }
 
@@ -383,11 +307,9 @@ class MainActivity : AppCompatActivity() {
         commandHistory.visibility = View.VISIBLE
         historyScrollView.visibility = View.VISIBLE
         
-        // Save history
         val prefs = getSharedPreferences("shavi_prefs", MODE_PRIVATE)
         prefs.edit().putString("command_history", commandHistory.text.toString()).apply()
         
-        // Auto-scroll to bottom
         historyScrollView.post {
             historyScrollView.fullScroll(View.FOCUS_DOWN)
         }
@@ -399,35 +321,27 @@ class MainActivity : AppCompatActivity() {
         
         if (firstRun) {
             responseContainer.visibility = View.VISIBLE
-            responseText.text = "👋 Welcome to SHAVi AI!\n\n1. Enter your Gemini API Key\n2. Click Start SHAVi\n3. Say 'Hey SHAVi' and command"
+            responseText.text = "👋 Welcome to SHAVi AI!\n\n1. Enter Gemini API Key\n2. Click Start\n3. Say 'Hey SHAVi'"
             responseText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_blue_light))
-            responseText.textSize = 16f
             
             getSharedPreferences("shavi_prefs", MODE_PRIVATE)
                 .edit().putBoolean("first_run", false).apply()
             
             handler.postDelayed({
                 responseContainer.visibility = View.GONE
-            }, 8000)
+            }, 6000)
         }
     }
 
     private fun animateStatusIcon(active: Boolean) {
         if (active) {
             statusIcon.animate()
-                .scaleX(1.3f)
-                .scaleY(1.3f)
+                .scaleX(1.3f).scaleY(1.3f)
                 .setDuration(500)
                 .withEndAction {
-                    statusIcon.animate()
-                        .scaleX(1f)
-                        .scaleY(1f)
-                        .setDuration(500)
-                        .start()
+                    statusIcon.animate().scaleX(1f).scaleY(1f).setDuration(500).start()
                 }
                 .start()
-        } else {
-            statusIcon.animate().scaleX(1f).scaleY(1f).setDuration(300).start()
         }
     }
 
@@ -437,39 +351,20 @@ class MainActivity : AppCompatActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-
         if (requestCode == PERMISSION_REQUEST_CODE) {
-            val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
-            if (allGranted) {
+            if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
                 Toast.makeText(this, "✅ All permissions granted", Toast.LENGTH_SHORT).show()
-                if (apiKeyInput.text.isNotEmpty()) {
-                    startService()
-                }
+                if (apiKeyInput.text.isNotEmpty()) startService()
             } else {
-                val denied = permissions.filterIndexed { index, _ ->
-                    grantResults[index] != PackageManager.PERMISSION_GRANTED
-                }
-                Toast.makeText(
-                    this,
-                    "⚠️ Permissions denied: ${denied.joinToString()}\n\nPlease grant permissions from Settings",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast.makeText(this, "⚠️ Permissions required", Toast.LENGTH_LONG).show()
             }
         }
     }
 
     override fun onResume() {
         super.onResume()
-        // Check if service is still running
-        isServiceRunning = VoiceAssistantService.Companion.isRunning
+        isServiceRunning = VoiceAssistantService.isRunning
         updateUI()
-        
-        // Reload API key
-        val prefs = getSharedPreferences("shavi_prefs", MODE_PRIVATE)
-        val savedKey = prefs.getString("gemini_api_key", "")
-        if (savedKey != apiKeyInput.text.toString()) {
-            apiKeyInput.setText(savedKey)
-        }
     }
 
     override fun onDestroy() {
@@ -477,8 +372,6 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacksAndMessages(null)
         try {
             LocalBroadcastManager.getInstance(this).unregisterReceiver(statusReceiver)
-        } catch (e: Exception) {
-            // Receiver already unregistered
-        }
+        } catch (e: Exception) {}
     }
 }
