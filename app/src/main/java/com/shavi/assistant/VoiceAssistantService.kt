@@ -14,16 +14,6 @@ import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
 import java.util.*
 
-/**
- * Runs in the foreground and keeps re-listening for the wake phrase "Hey SHAVi".
- * Once heard, it listens for the actual command, sends it to Gemini, then
- * asks CommandHandler to actually perform the action (call, time, etc).
- *
- * Note: Android's SpeechRecognizer needs short listening windows, so this
- * service works by restarting recognition in a loop ("always listening"
- * simulation). It is not a true offline wake-word engine like Porcupine,
- * but needs zero extra API keys or native libraries to get started.
- */
 class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
 
     private var speechRecognizer: SpeechRecognizer? = null
@@ -66,7 +56,7 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Hey SHAVi")
             .setContentText(text)
-            .   mallIcon(android.R.drawable.ic_btn_speak_now)
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setOngoing(true)
             .build()
     }
@@ -103,7 +93,6 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
             }
 
             override fun onError(error: Int) {
-                // Recognizer times out often when it hears silence; just restart it.
                 restartListening()
             }
 
@@ -126,7 +115,7 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
         }
         serviceScope.launch {
-            delay(300) // small gap so the recognizer doesn't restart too aggressively
+            delay(300)
             speechRecognizer?.startListening(intent)
         }
     }
@@ -158,8 +147,7 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
         ) == PackageManager.PERMISSION_GRANTED
 
         val hasSmsPermission = ActivityCompat.checkSelfPermission(
-            this, 
-        
+            this, android.Manifest.permission.SEND_SMS
         ) == PackageManager.PERMISSION_GRANTED
 
         val resultText = when (action.action) {
