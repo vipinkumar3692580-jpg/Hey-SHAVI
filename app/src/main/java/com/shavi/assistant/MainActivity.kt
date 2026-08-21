@@ -73,3 +73,5 @@ class MainActivity : AppCompatActivity() {
                 val key = prefs.getString("gemini_api_key", "")
                 if (key.isNullOrBlank()) {
                     Toast.ma
+
+                
