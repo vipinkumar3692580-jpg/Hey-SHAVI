@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Hey SHAVi</string>
+    <string name="accessibility_service_description">SHAVi ko screen scroll karne aur apps kholne dene ke liye ye service zaroori hai.</string>
+</resources>
