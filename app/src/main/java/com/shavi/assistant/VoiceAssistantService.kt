@@ -156,7 +156,8 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
         ) == PackageManager.PERMISSION_GRANTED
 
         val hasSmsPermission = ActivityCompat.checkSelfPermission(
-            this, android.Manifest.permission.SEND_SMS
+            this, 
+        
         ) == PackageManager.PERMISSION_GRANTED
 
         val resultText = when (action.action) {
