@@ -1,16 +1,20 @@
 package com.shavi.assistant
 
 import android.app.*
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -26,10 +30,15 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
         const val CHANNEL_ID = "shavi_channel"
         const val NOTIF_ID = 101
         const val WAKE_PHRASE = "hey shavi"
+        var isRunning = false
+        var apiKey: String? = null
     }
 
     override fun onCreate() {
         super.onCreate()
+        isRunning = true
+        Log.d("SHAVi", "Service Created")
+        
         commandHandler = CommandHandler(this)
         tts = TextToSpeech(this, this)
         startForeground(NOTIF_ID, buildNotification("SHAVi sun rahi hai..."))
@@ -38,9 +47,13 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            tts?.language = Locale("hi", "IN")
-            tts?.setPitch(1.6f)
-            tts?.setSpeechRate(1.1f)
+            tts?.apply {
+                language = Locale("hi", "IN")
+                setPitch(1.6f)
+                setSpeechRate(1.1f)
+                Log.d("SHAVi", "TTS initialized")
+                speak("SHAVi ready")
+            }
         }
     }
 
@@ -50,7 +63,7 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
         val channel = NotificationChannel(
             CHANNEL_ID, "SHAVi Assistant", NotificationManager.IMPORTANCE_LOW
         )
-        val manager = getSystemService(NotificationManager::class.java)
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -62,7 +75,7 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
     }
 
     private fun updateNotification(text: String) {
-        val manager = getSystemService(NotificationManager::class.java)
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIF_ID, buildNotification(text))
     }
 
@@ -133,11 +146,18 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
         }
 
         serviceScope.launch(Dispatchers.IO) {
-            val client = GeminiClient(apiKey)
-            val action = client.resolveCommand(command)
+            try {
+                val client = GeminiClient(apiKey)
+                val action = client.resolveCommand(command)
 
-            withContext(Dispatchers.Main) {
-                executeAction(action)
+                withContext(Dispatchers.Main) {
+                    executeAction(action)
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    speak("Kuch gadbad ho gayi")
+                    restartListening()
+                }
             }
         }
     }
@@ -175,6 +195,7 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        isRunning = false
         speechRecognizer?.destroy()
         tts?.shutdown()
         serviceScope.cancel()
