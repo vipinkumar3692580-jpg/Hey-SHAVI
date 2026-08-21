@@ -49,6 +49,8 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             tts?.language = Locale("hi", "IN")
+            tts?.setPitch(1.6f)
+            tts?.setSpeechRate(1.1f)
         }
     }
 
@@ -64,7 +66,7 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Hey SHAVi")
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .   mallIcon(android.R.drawable.ic_btn_speak_now)
             .setOngoing(true)
             .build()
     }
