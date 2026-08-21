@@ -4,22 +4,18 @@ import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
-import android.os.PowerManager
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.util.Log
-import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
 import okhttp3.*
 import org.json.JSONObject
-import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -28,11 +24,8 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
 
     private var speechRecognizer: SpeechRecognizer? = null
     private var tts: TextToSpeech? = null
+    private var isTtsReady = false
     private var isWakeWordDetected = false
-    private var isListening = false
-    private var isSpeaking = false
-    private lateinit var wakeLock: PowerManager.WakeLock
-    
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -41,11 +34,9 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
         .build()
     
     companion object {
-        private const val TAG = "SHAViService"
+        private const val TAG = "SHAVi"
         const val CHANNEL_ID = "shavi_channel"
         const val NOTIF_ID = 101
-        var isRunning = false
-        
         val WAKE_PHRASES = listOf(
             "hey shavi", "hey shiv", "he shavi", "hi shavi",
             "हाय शावी", "हे शावी", "शावी", "shavi"
@@ -54,40 +45,41 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "🚀 SHAVi Service Creating...")
-        isRunning = true
+        Log.d(TAG, "🚀 Service onCreate")
         
-        // Wake Lock for continuous operation
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = powerManager.newWakeLock(
-            PowerManager.PARTIAL_WAKE_LOCK,
-            "SHAVi:WakeLock"
-        ).apply { acquire() }
-        
-        // Initialize TTS
+        // ✅ TTS Initialize
         tts = TextToSpeech(this, this)
         
-        // Start Foreground
+        // ✅ Notification
         createNotificationChannel()
-        startForeground(NOTIF_ID, buildNotification("🟢 SHAVi सुन रही है..."))
+        startForeground(NOTIF_ID, buildNotification("🔄 SHAVi starting..."))
         
-        // Start listening
+        // ✅ Speech Recognition
         startVoiceRecognition()
         
-        Log.d(TAG, "✅ SHAVi Service Created Successfully")
+        // ✅ Test TTS after 2 seconds
+        serviceScope.launch {
+            delay(2000)
+            if (!isTtsReady) {
+                Log.e(TAG, "❌ TTS not ready after 2 seconds")
+            }
+        }
     }
 
     override fun onInit(status: Int) {
+        Log.d(TAG, "TTS onInit: $status")
         if (status == TextToSpeech.SUCCESS) {
             tts?.apply {
                 language = Locale("hi", "IN")
                 setPitch(1.5f)
                 setSpeechRate(1.0f)
-                Log.d(TAG, "✅ TTS Initialized Successfully")
-                speak("नमस्ते! मैं SHAVi हूँ, आपकी निजी सहायक")
+                isTtsReady = true
+                Log.d(TAG, "✅ TTS initialized successfully")
+                speak("नमस्ते! मैं SHAVi हूँ")  // ✅ Test speech
+                updateNotification("🟢 SHAVi ready")
             }
         } else {
-            Log.e(TAG, "❌ TTS Initialization Failed")
+            Log.e(TAG, "❌ TTS initialization failed: $status")
         }
     }
 
@@ -98,12 +90,10 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "SHAVi Assistant",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_HIGH  // ✅ HIGH importance
             ).apply {
-                description = "SHAVi is running in background"
-                setShowBadge(false)
-                enableLights(true)
-                lightColor = Color.GREEN
+                description = "SHAVi is running"
+                enableVibration(true)
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
@@ -111,19 +101,12 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
     }
 
     private fun buildNotification(text: String): Notification {
-        val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("🤖 SHAVi AI")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setOngoing(true)
-            .setContentIntent(pendingIntent)
             .build()
     }
 
@@ -134,8 +117,8 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
 
     private fun startVoiceRecognition() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            Log.e(TAG, "❌ Speech Recognition not available")
-            updateNotification("⚠️ Speech recognition not available")
+            Log.e(TAG, "❌ Speech recognition not available")
+            updateNotification("⚠️ Speech recognition unavailable")
             return
         }
 
@@ -144,66 +127,58 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
             speechRecognizer?.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
                     Log.d(TAG, "🎤 Ready for speech")
-                    isListening = true
-                    updateStatus("🎤 सुन रही हूँ...")
+                    updateNotification("🎤 सुन रही हूँ...")
                 }
 
                 override fun onBeginningOfSpeech() {
                     Log.d(TAG, "🎤 Beginning of speech")
-                    updateStatus("🎤 सुन रही हूँ...")
                 }
 
-                override fun onRmsChanged(rmsdB: Float) {
-                    // Voice activity indicator - can be used for UI
-                }
+                override fun onRmsChanged(rmsdB: Float) {}
 
                 override fun onBufferReceived(buffer: ByteArray?) {}
 
                 override fun onEndOfSpeech() {
                     Log.d(TAG, "🎤 End of speech")
-                    updateStatus("⏳ प्रोसेस कर रही हूँ...")
+                    updateNotification("⏳ प्रोसेस कर रही हूँ...")
                 }
 
                 override fun onResults(results: Bundle?) {
-                    isListening = false
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     val heard = matches?.firstOrNull()?.lowercase(Locale.getDefault())?.trim() ?: ""
                     
+                    Log.d(TAG, "🎯 Heard: '$heard'")
+                    
                     if (heard.isNotEmpty()) {
-                        Log.d(TAG, "🎯 Heard: $heard")
-                        processVoiceCommand(heard)
+                        processCommand(heard)
                     } else {
-                        Log.d(TAG, "⚠️ No speech detected")
+                        Log.d(TAG, "⚠️ Empty result, restarting")
                         restartListening()
                     }
                 }
 
-                override fun onPartialResults(partialResults: Bundle?) {
-                    // Can be used for real-time transcription
-                }
+                override fun onPartialResults(partialResults: Bundle?) {}
 
                 override fun onEvent(eventType: Int, params: Bundle?) {}
 
                 override fun onError(error: Int) {
-                    isListening = false
                     val errorMsg = when (error) {
-                        SpeechRecognizer.ERROR_AUDIO -> "Audio error - check microphone"
+                        SpeechRecognizer.ERROR_AUDIO -> "Audio error"
                         SpeechRecognizer.ERROR_CLIENT -> "Client error"
                         SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Permission denied"
-                        SpeechRecognizer.ERROR_NETWORK -> "Network error - check internet"
+                        SpeechRecognizer.ERROR_NETWORK -> "Network error"
                         SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
-                        SpeechRecognizer.ERROR_NO_MATCH -> "No match found - please speak clearly"
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Busy, retrying..."
+                        SpeechRecognizer.ERROR_NO_MATCH -> "No match"
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Busy"
                         SpeechRecognizer.ERROR_SERVER -> "Server error"
-                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout - speak louder"
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout"
                         else -> "Error: $error"
                     }
-                    
-                    Log.e(TAG, "❌ Recognition Error: $errorMsg")
-                    updateStatus("⚠️ $errorMsg")
+                    Log.e(TAG, "❌ Recognition error: $errorMsg")
+                    updateNotification("⚠️ $errorMsg")
                     
                     serviceScope.launch {
-                        delay(1500)
+                        delay(2000)
                         restartListening()
                     }
                 }
@@ -212,7 +187,7 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
             startListening()
             
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error initializing speech recognition", e)
+            Log.e(TAG, "❌ Error initializing recognition", e)
             updateNotification("❌ Error: ${e.message}")
         }
     }
@@ -224,89 +199,79 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 3000L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 2000L)
             }
             
             speechRecognizer?.startListening(intent)
-            isListening = true
-            updateStatus("🔊 'Hey SHAVi' बोलें...")
             Log.d(TAG, "👂 Listening started")
+            updateNotification("🔊 'Hey SHAVi' बोलें")
             
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error starting listening", e)
-            updateStatus("❌ Error: ${e.message}")
+            updateNotification("❌ Start error: ${e.message}")
         }
     }
 
     private fun restartListening() {
         Log.d(TAG, "🔄 Restarting listening...")
         isWakeWordDetected = false
-        isListening = false
         
         serviceScope.launch {
-            delay(800)
+            delay(1000)
             startListening()
         }
     }
 
-    private fun updateStatus(text: String) {
-        updateNotification(text)
-        // Send broadcast to update UI
-        val intent = Intent(MainActivity.ACTION_UPDATE_STATUS).apply {
-            putExtra("status", text)
-        }
-        sendBroadcast(intent)
-    }
-
-    private fun processVoiceCommand(heard: String) {
-        // Check if this is a wake word
+    private fun processCommand(heard: String) {
         val isWakeWord = WAKE_PHRASES.any { heard.contains(it) }
         
+        Log.d(TAG, "Processing: isWakeWord=$isWakeWord, detected=$isWakeWordDetected")
+        
         if (!isWakeWord && !isWakeWordDetected) {
-            Log.d(TAG, "⏭️ No wake word, ignoring: $heard")
-            restartListening()
+            Log.d(TAG, "⏭️ No wake word, ignoring")
             return
         }
         
         if (isWakeWord && !isWakeWordDetected) {
             isWakeWordDetected = true
-            speak("जी बोलिए, मैं सुन रही हूँ")
-            updateStatus("🎤 कमांड सुन रही हूँ...")
+            speak("जी बोलिए")  // ✅ Voice response
+            updateNotification("🎤 कमांड सुन रही हूँ")
             restartListening()
             return
         }
         
-        // Process the actual command
+        // ✅ Process command
         isWakeWordDetected = false
-        updateStatus("💭 प्रोसेस कर रही हूँ...")
+        updateNotification("💭 सोच रही हूँ...")
         
-        // Get API key
+        // ✅ Get API Key
         val prefs = getSharedPreferences("shavi_prefs", Context.MODE_PRIVATE)
         val apiKey = prefs.getString("gemini_api_key", null)
         
+        Log.d(TAG, "API Key: ${apiKey?.take(10)}...")  // Debug log
+        
         if (apiKey.isNullOrBlank()) {
-            speak("कृपया पहले Gemini API key सेट करें")
-            updateStatus("⚠️ No API key found")
+            speak("कृपया Gemini API key डालें")
+            updateNotification("⚠️ No API key")
             restartListening()
             return
         }
         
-        // Process with Gemini
+        // ✅ Process with Gemini
         serviceScope.launch {
             try {
                 val response = processWithGemini(heard, apiKey)
-                speak(response)
-                updateStatus("✅ $response")
-                broadcastResponse(response)
+                Log.d(TAG, "✅ Response: $response")
+                speak(response)  // ✅ Speak response
+                updateNotification("✅ Response given")
                 
-                serviceScope.launch {
-                    delay(3000)
-                    restartListening()
-                }
+                delay(3000)
+                restartListening()
+                
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Error processing command", e)
+                Log.e(TAG, "❌ Error processing", e)
                 speak("क्षमा करें, कुछ गड़बड़ हो गई")
-                updateStatus("❌ Error: ${e.message}")
+                updateNotification("❌ Error: ${e.message}")
                 restartListening()
             }
         }
@@ -317,27 +282,12 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
             try {
                 val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=$apiKey"
                 
-                // Create system prompt for J.A.R.V.I.S. style
-                val systemPrompt = """You are SHAVi, a J.A.R.V.I.S.-style AI assistant for an Android phone. 
-You are smart, witty, and helpful. Keep responses short and conversational in Hindi/English mix.
-You can help with:
-- Time and date
-- Opening apps
-- Making calls
-- Sending messages
-- Web searches
-- General questions
-- Device controls
-
-Respond naturally in Hinglish (Hindi+English). Be friendly but concise.
-User said: $command"""
-                
                 val json = JSONObject().apply {
                     put("contents", listOf(
                         JSONObject().apply {
                             put("parts", listOf(
                                 JSONObject().apply {
-                                    put("text", systemPrompt)
+                                    put("text", "You are SHAVi AI assistant. Respond in Hinglish (Hindi+English) mixed, friendly and helpful. Keep response short (max 2 sentences). User: $command")
                                 }
                             ))
                         }
@@ -353,24 +303,26 @@ User said: $command"""
                 val response = client.newCall(request).execute()
                 val responseBody = response.body?.string()
                 
+                Log.d(TAG, "API Response Code: ${response.code}")
+                
                 if (!response.isSuccessful) {
-                    Log.e(TAG, "❌ API Error: ${response.code}")
+                    Log.e(TAG, "API Error: $responseBody")
                     return@withContext getFallbackResponse(command)
                 }
                 
                 val jsonResponse = JSONObject(responseBody ?: "{}")
-                val text = jsonResponse.getJSONArray("candidates")
+                val text = jsonResponse
+                    .getJSONArray("candidates")
                     .getJSONObject(0)
                     .getJSONObject("content")
                     .getJSONArray("parts")
                     .getJSONObject(0)
                     .getString("text")
                 
-                Log.d(TAG, "✅ Gemini Response: $text")
                 text
                 
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Gemini API Error", e)
+                Log.e(TAG, "API Exception", e)
                 getFallbackResponse(command)
             }
         }
@@ -380,51 +332,35 @@ User said: $command"""
         return when {
             command.contains("time") || command.contains("समय") -> {
                 val time = SimpleDateFormat("hh:mm a", Locale("hi")).format(Date())
-                "अभी समय $time बज रहा है"
+                "समय $time बज रहा है"
             }
             command.contains("date") || command.contains("तारीख") -> {
                 val date = SimpleDateFormat("dd MMMM yyyy", Locale("hi")).format(Date())
                 "आज $date है"
             }
             command.contains("hello") || command.contains("नमस्ते") -> {
-                "नमस्ते! मैं SHAVi हूँ, आपकी कैसे मदद कर सकती हूँ?"
+                "नमस्ते! मैं SHAVi हूँ"
             }
             else -> {
-                "मुझे समझ नहीं आया। कृपया फिर से बोलें या API key चेक करें।"
+                "मुझे समझ नहीं आया, कृपया फिर से बोलें"
             }
         }
     }
 
     private fun speak(text: String) {
-        isSpeaking = true
-        Log.d(TAG, "🗣️ Speaking: $text")
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "shavi_utterance")
-        
-        // Small delay to ensure speech completes
-        serviceScope.launch {
-            delay(text.length * 50L + 1000)
-            isSpeaking = false
+        if (isTtsReady) {
+            Log.d(TAG, "🗣️ Speaking: $text")
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "shavi_utterance")
+        } else {
+            Log.e(TAG, "❌ TTS not ready, can't speak")
         }
-    }
-
-    private fun broadcastResponse(text: String) {
-        val intent = Intent(MainActivity.ACTION_UPDATE_RESPONSE).apply {
-            putExtra("response", text)
-        }
-        sendBroadcast(intent)
     }
 
     override fun onDestroy() {
-        Log.d(TAG, "🛑 SHAVi Service Destroying...")
-        isRunning = false
-        isListening = false
-        
+        Log.d(TAG, "🛑 Service Destroyed")
         super.onDestroy()
         speechRecognizer?.destroy()
         tts?.shutdown()
-        wakeLock.release()
         serviceScope.cancel()
-        
-        Log.d(TAG, "✅ SHAVi Service Destroyed")
     }
 }
