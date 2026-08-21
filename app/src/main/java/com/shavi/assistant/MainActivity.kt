@@ -21,7 +21,7 @@ class MainActivity : AppCompatActivity() {
         android.Manifest.permission.RECORD_AUDIO,
         android.Manifest.permission.CALL_PHONE,
         android.Manifest.permission.READ_CONTACTS,
-        android.Manifest.permission.SEND_SMS
+        android.Manifest.permission.
     ).apply {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(android.Manifest.permission.POST_NOTIFICATIONS)
