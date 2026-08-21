@@ -81,8 +81,8 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
                 if (!listeningForCommand) {
                     if (heard.contains(WAKE_PHRASE)) {
                         listeningForCommand = true
-                        updateNotification("Ji bataiye...")
-                        speak("Ji bataiye")
+                        updateNotification("Ji boliye, main yahi hoon...")
+                        speak("Ji boliye, main yahi hoon")
                     }
                     restartListening()
                 } else {
@@ -93,6 +93,7 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
             }
 
             override fun onError(error: Int) {
+                updateNotification("Error code: $error — restart ho rahi hai")
                 restartListening()
             }
 
